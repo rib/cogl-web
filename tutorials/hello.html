@@ -1,0 +1,196 @@
+<p>Here is an introductory example of using the Cogl 2.0 api to draw a single triangle.
+<p>After the example there are detailed explanations of each section.
+
+{{EVERYTHING}}
+
+<h2>Building the example</h2>
+<p>If you save the above code to a file named hello.c then you can compile
+the example as follows:
+
+<pre>
+gcc -o hello hello.c `pkg-config --cflags --libs cogl2` `pkg-config --cflags --libs glib-2.0`
+</pre>
+
+<h1>Step by Step...</h1>
+<h2>Including the right headers</h2>
+First include the experimental Cogl 2.0 API via &lt;cogl/cogl.h>
+
+<p><em>Note: The Cogl 2.0 api is still a work in progress so be aware that
+there is a chance that this example is slightly out of date.</em>
+
+{{COGL_HEADER}}
+
+<p>Since Cogl needs to be integrated with a mainloop this example uses the Glib
+mainloop because it's portable.
+
+<p><em>Note: Glib is not a required dependency for Cogl, and if you want
+to integrate with an alternative mainloop library then Cogl makes that
+possible.</em>
+
+{{GLIB_HEADER}}
+
+<p>We will construct various state in the main() function which we also need to
+share with the paint() callback so we declare a structure to hold that shared
+state...
+
+{{DATA}}
+
+<h2>Creating a context</h2>
+<p>A CoglContext is an application sandbox for interacting with a graphics
+renderer (typically a GPU) and an application should normally only create a
+single Context.
+
+<p>Although Cogl does offer a lot of control over the details of how a Context
+is initialized, in this example we are going to gloss over that capability by
+passing a <em>NULL</em> display pointer to cogl_context_new() so that Cogl can
+instead just choose sensible defaults. This is what most simple applications
+should do.
+
+<p>Strictly speaking passing the error argument to cogl_context_new() is optional
+but this is a good opportunity to show how Cogl exposes runtime exceptions to
+the user.
+
+<p>If a runtime recoverable error occurs (such as an IO error when trying to
+communicate with the platform specific graphics stack) then cogl_context_new()
+will return <em>NULL</em> and also pass back an exception pointer through the
+error argument.
+
+<p>If an exception is returned then it contains a domain value, an error code
+and a human readable error message that can be shown to a user.
+
+<p>In this example we are just aborting the program so really this error handling
+example is redundant because the default behaviour of Cogl is to automatically
+print the error message and abort if the error argument is <em>NULL.</em>
+
+<p><em>Note: for those interested in more details about controlling the context
+initialization they should look into the CoglRenderer, CoglDisplay and
+CoglOnscreenTemplate apis.</em>
+
+{{NEW_CONTEXT}}
+
+<h2>Creating an onscreen framebuffer</h2>
+<p>Once we have a context we are able to create an onscreen framebuffer with a requested size.
+<p><em>Note: the dimensions are only a request since on some platforms an onscreen framebuffer will be forced to be fullscreen.</em>
+{{NEW_ONSCREEN}}
+
+<p>When we are ready we can make the onscreen framebuffer visible to the user like so...
+{{ONSCREEN_SHOW}}
+
+<p>At this point it's worth mentioning that Cogl's type system is "Interface Oriented" more so than it is strictly "Object Oriented".
+<p>What this means is that the programming style puts more emphasis on what interfaces an object implements than it does on what its type is or what types an object inherits from. This style should be familar to those with any experience of Java, or any duck-typed languages such as Ruby or JavaScript.
+<p>One of the interfaces Cogl exposes is the "CoglFramebuffer" interface. This interface exposes any functionality that is common between onscreen and offscreen framebuffers that can be rendered too.
+<p>This next line shows us casting a CoglOnscreen framebuffer to a CoglFramebuffer so we can use the pointer with the CoglFramebuffer interface api.
+{{CAST_FRAMEBUFFER}}
+
+<h2>Creating a primitive</h2>
+<p>Next we are going to create a primitive, representing geometry that we can draw.
+
+<p>A primitive represents a collection of vertex attributes where a vertex attribute might for example be a position, color or texture coordinate. So if you imagine a model made of points in space (vertices) which we join up with lots of triangles then each one of those vertices can have a position, a color and texture coordinate.
+
+<p>Cogl offers lots of control over the details of how primitives are memory managed; over what attributes should be associated with a primitive and what data types should be used for each attribute but Cogl also provides some convenience functions for the most common choices made.
+
+<p>Cogl provides a number of convenient vertex structures representing the most common vertex layouts with commonly used attribute types. In this example we want each vertex of our triangle to have x and y position coordinates as well as 4 unsigned byte color components. Although at first sight the <em>"P2C4"</em> suffix may seem awkward, the convenience this offers is really worthwhile. The 'P2" refers to the 2 <em>p</em>osition coordinates and the C4 refers to the 4 <em>c</em>olor coordinates.
+
+<p>The data we declare here represents 3 vertices of a triangle and you can see each vertex has a position followed by an rgba color.
+{{VERTEX_DATA}}
+
+<p>Once we have the data for a primitive we upload the data to the GPU and specify a topology for the data.
+<p>GPUs can handle a number of standard topologies which we won't cover in full here, but the COGL_VERTICES_MODE_TRIANGLES topology implies that each sequential set of 3 vertices defines a single distinct triangle for the GPU.
+{{PRIMITIVE_NEW}}
+
+<h2>Describing a pipeline</h2>
+<p>Once we have a primitive that represents the geometry we want to draw the next thing we need is a <em>pipeline</em> that defines <em>how</em> to draw our geometry.
+<p>GPUs process data in a long pipeline which might start with some vertex processing (take a model and translate, rotate and squash it), followed by pixel processing (for each triangle of a model apply a color gradient and combine with a texture) and end on blending (take a colored and textured triangle and blend it onto a framebuffer to become part of a bigger picture).
+<p>Cogl provides an api to control how that GPU processing pipeline works and encapsulate a complete pipeline description into a single object.
+<p>In this example we are actually just going to use a default pipeline so its enough to allocate a pipeline object and use that.
+{{PIPELINE_NEW}}
+
+<h2>Mainloop Integration</h2>
+
+<p>Cogl requires that it is integrated with a system mainloop of some kind because the api is designed to allow certain work to be handled asynchronously without blocking an application but when that work completes we can notify the application via a callback that they registered.
+<p>The GLib api provides a portable mainloop that we are using in this example, but Cogl also provides alternative apis to allow integration with a different mainloop if required.
+
+{{GLIB_SOURCE_NEW}}
+
+<h3>What does a mainloop provide?</h3>
+
+<p>A mainloop is a very common way of driving event based applications by providing a centralized event dispatch point that is able to manage event sources, such as socket file descriptors (that might provide events from another process) or device file descriptors (that can provide events from the system).
+
+<p>A mainloop is typically managed by adding event sources to the loop and once an application is initialized it will <em>run</em> the mainloop by calling into a function that won't return until the mainloop stops running. Once a mainloop is running then the application is driven by the events triggered by registered event sources which will typically result in calling application callback functions that were previously associated with the event sources.
+
+<p>Since graphics hardware runs asynchronously with respect to an application running on the CPU it's important that Cogl has an efficient way to deliver events about the state of the hardware to the application without it having to repeatedly, manually, probe the state of the hardware. This is why Cogl is designed to be integrated with a mainloop, so we can take advantage of platform specific event delivery mechanisms that enable an application to go to sleep while it is idle waiting for events without wasting power.
+
+<h3>Registering for swap complete events if feature is supported</h3>
+
+<p>As an example of an event that can be very useful for applications; Cogl can notify applications when the GPU has finished rendering a new frame and has finished presenting that frame to the user. Not all platforms can support this so applications need to explicitly check for this feature before using it. If the <em>COGL_FEATURE_ID_SWAP_BUFFERS_EVENT</em> feature is available though we can register a callback function to be called when each new frame we draw has really been finished and presented.
+
+<p>By tracking when the GPU is finishing each of our frames we can avoid drawing frames faster than the GPU can cope with them. The reason this is particularly important is that if you build up a backlog of frames which the GPU can't keep up with then we are forced to have to block the application, potentially at an inconvenient time. Without restraint an application may end up blocked at un-predictable times waiting for the GPU to catch up and while the application is blocked it cant respond to anything else on the CPU such as events from the mainloop.
+
+<p>If an application can instead restrain the speed at which it submits frames to the GPU it can avoid this un-predictable blocking which means it can instead return to the mainloop while it is idly waiting for the GPU to catch up. This way the application can continue processing other events such as input events while the GPU is busy.
+
+{{ADD_SWAP_CALLBACK}}
+
+<h3>Running the mainloop</h3>
+
+<p>We are almost ready to start running the mainloop, but to bootstrap rendering we need to register an idle callback function with the mainloop that will be immediately dispatched once we start it running.
+
+{{ADD_PAINT_IDLE}}
+
+<p>Now we are ready; we enter the mainloop as the last thing we do in the <em>main()</em> function. In this example we never exit the mainloop but a more complete application might exit the function in response to a user request to quit the application.
+
+{{RUN_MAINLOOP}}
+
+<h2>Drawing our triangle</h2>
+
+<p>Once the mainloop starts running our <em>paint_cb</em> callback function will called and is the place for us to render a new frame. The <em>user_data</em> argument is the Data pointer we passed to <em>g_idle_add</em> earlier so we can access the Cogl framebuffer and context we created.
+
+{{PAINT_CALLBACK_PROTO}}
+
+<p>The first thing we do at the start of a new frame is to clear the colour contents of the framebuffer we're drawing too.
+
+<p><em>Note: you can't assume that anything is preserved in your framebuffer between frames since a single CoglFramebuffer may internally be comprised of multiple buffers that are switched between so for each frame you render you may not be rendering to the same memory as the previous frame.</em>
+
+<p>Next we can submit our triangle <em>primitive</em> to the GPU along with the <em>pipeline</em> that should be used to process that primitive as it is rendered to the given <em>framebuffer</em>.
+
+<p>When we've finished drawing we explicitly ask for the new frame to be presented to the user by <em>"swapping"</em> the colour buffer from being a hidden back-buffer to being a visible front-buffer.
+
+<p><em>Remember, as we mentioned earlier, the GPU works asynchronously with respect to the application so when cogl_onscreen_swap_buffers() returns that doesn't necesarily mean the GPU has finished rendering the new frame or that the frame is literally visible yet. The swap-buffers-callback registered in the main() function can tell us about this if supported by the platform.</em>
+
+{{DRAW_COMMANDS}}
+
+<h2>Handling further redraws</h2>
+
+<p>Finally once we have finished rendering a frame we need to think about preparing to render the next frame.
+
+<p>Depending on whether the platform supports notifying us about swap-buffer completions there are two ways of queuing the next redraw in this example.
+<ol>
+    <li>
+    <p>If the platform doesn't support swap-buffer notifications then it can
+    return <em>TRUE</em> from the idle <em>paint_cb</em> function and the glib
+    semantics for that are that the function will continue to be called
+    repeatedly whenever the mainloop is idle. This effectively means the
+    mainloop will try to draw new frames as fast as possible and on most
+    platforms it should be automatically throttled to the screen's vblank
+    frequency by blocking in cogl_onscreen_swap_buffers() once a backlog of
+    frames has built up.
+
+    <p><em>Since throttling will happen automatically within the driver, either
+    in cogl_onscreen_swap_buffers(), or potentially in
+    cogl_framebuffer_clear4f() for example this means the application's
+    mainloop is blocked from running while being throttled which reduces the
+    time available for the application to handle other events.</em>
+    </li>
+
+    <li>
+    <p>If the platform does support swap-buffer notifications then this
+    example instead returns <em>FALSE</em> from <em>paint_cb</em> so that
+    the Glib mainloop won't call it again when idle.
+
+    <p>Now the application waits until the <em>swap_complete_cb</em> callback
+    function notifies us that the swap has completed and only at that point
+    re-registers <em>paint_cb</em> as an idle function to be called again by
+    the mainloop.
+    </li>
+</ol>
+
+{{PREPARE_FOR_REDRAW}}
