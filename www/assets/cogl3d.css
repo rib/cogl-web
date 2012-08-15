@@ -4,10 +4,10 @@
 @import url("heading.css");
 @import url("content.css");
 
-body{font-family: 'Comfortaa', cursive;}
+body{font-family: 'Droid Sans', sans-serif; font-size: 14px}
 
-#tweet{font-family: 'Yanone Kaffeesatz', sans-serif;}
+#tweet{font-family: 'Marvel', sans-serif;}
 #tweet li{padding-bottom: 10px;}
 
-.note{font-family: 'Yanone Kaffeesatz', sans-serif; font-size: 90%;}
+.note{font-family: 'Marvel', sans-serif; font-size: 90%;}
 .head{background: #eeeeee;}
