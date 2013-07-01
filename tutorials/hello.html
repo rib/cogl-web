@@ -1,14 +1,14 @@
-<p>Here is an introductory example of using the Cogl 2.0 api to draw a single triangle.
+<p>Here is an introductory example of using the Cogl 2.0 api.
 <p>After the example there are detailed explanations of each section.
 
-{{EVERYTHING}}
+{{ALL}}
 
 <h2>Building the example</h2>
 <p>If you save the above code to a file named hello.c then you can compile
 the example as follows:
 
 <pre>
-gcc -o hello hello.c `pkg-config --cflags --libs cogl2` `pkg-config --cflags --libs glib-2.0`
+gcc -o hello hello.c `pkg-config --cflags --libs cogl2 glib-2.0`
 </pre>
 
 <h1>Step by Step...</h1>
@@ -23,7 +23,7 @@ there is a chance that this example is slightly out of date.</em>
 <p>Since Cogl needs to be integrated with a mainloop this example uses the Glib
 mainloop because it's portable.
 
-<p><em>Note: Glib is not a required dependency for Cogl, and if you want
+<p><em>Note: Glib's mainloop is not a required dependency for Cogl, and if you want
 to integrate with an alternative mainloop library then Cogl makes that
 possible.</em>
 
@@ -77,7 +77,7 @@ CoglOnscreenTemplate apis.</em>
 {{ONSCREEN_SHOW}}
 
 <p>At this point it's worth mentioning that Cogl's type system is "Interface Oriented" more so than it is strictly "Object Oriented".
-<p>What this means is that the programming style puts more emphasis on what interfaces an object implements than it does on what its type is or what types an object inherits from. This style should be familar to those with any experience of Java, or any duck-typed languages such as Ruby or JavaScript.
+<p>What this means is that the programming style puts more emphasis on what interfaces an object implements than it does on what its type is or what types an object inherits from. This style should be familar to those with any experience of JavaScript, or any duck-typed languages such as Ruby.
 <p>One of the interfaces Cogl exposes is the "CoglFramebuffer" interface. This interface exposes any functionality that is common between onscreen and offscreen framebuffers that can be rendered too.
 <p>This next line shows us casting a CoglOnscreen framebuffer to a CoglFramebuffer so we can use the pointer with the CoglFramebuffer interface api.
 {{CAST_FRAMEBUFFER}}
@@ -120,15 +120,15 @@ CoglOnscreenTemplate apis.</em>
 
 <p>Since graphics hardware runs asynchronously with respect to an application running on the CPU it's important that Cogl has an efficient way to deliver events about the state of the hardware to the application without it having to repeatedly, manually, probe the state of the hardware. This is why Cogl is designed to be integrated with a mainloop, so we can take advantage of platform specific event delivery mechanisms that enable an application to go to sleep while it is idle waiting for events without wasting power.
 
-<h3>Registering for swap complete events if feature is supported</h3>
+<h3>Registering for frame synchronization events</h3>
 
-<p>As an example of an event that can be very useful for applications; Cogl can notify applications when the GPU has finished rendering a new frame and has finished presenting that frame to the user. Not all platforms can support this so applications need to explicitly check for this feature before using it. If the <em>COGL_FEATURE_ID_SWAP_BUFFERS_EVENT</em> feature is available though we can register a callback function to be called when each new frame we draw has really been finished and presented.
+<p>An important example of events in Cogl is the ability to register a callback for synchronizing the painting of an application.
 
-<p>By tracking when the GPU is finishing each of our frames we can avoid drawing frames faster than the GPU can cope with them. The reason this is particularly important is that if you build up a backlog of frames which the GPU can't keep up with then we are forced to have to block the application, potentially at an inconvenient time. Without restraint an application may end up blocked at un-predictable times waiting for the GPU to catch up and while the application is blocked it cant respond to anything else on the CPU such as events from the mainloop.
+<p>This synchronization mechanism will make sure your applications doesn't waste resources rendering faster than can be displayed. When your application is running under a system compositor then Cogl will make sure rendering is synchronized with the painting of the compositor, otherwise Cogl will make sure rendering is synchronized to the refresh rate of your display.
 
-<p>If an application can instead restrain the speed at which it submits frames to the GPU it can avoid this un-predictable blocking which means it can instead return to the mainloop while it is idly waiting for the GPU to catch up. This way the application can continue processing other events such as input events while the GPU is busy.
+<p>This mechanism also helps to ensure that your application doesn't end up trying to render new frames when the GPU is not ready to accept more frame which would otherwise lead to the application being forcibly blocked until the GPU is ready. By helping your application avoid these forced blocks that means your application gets more CPU time overall for processing other mainloop events which can have a big impact on interactivity.
 
-{{ADD_SWAP_CALLBACK}}
+{{ADD_FRAME_CALLBACK}}
 
 <h3>Running the mainloop</h3>
 
@@ -142,7 +142,7 @@ CoglOnscreenTemplate apis.</em>
 
 <h2>Drawing our triangle</h2>
 
-<p>Once the mainloop starts running our <em>paint_cb</em> callback function will called and is the place for us to render a new frame. The <em>user_data</em> argument is the Data pointer we passed to <em>g_idle_add</em> earlier so we can access the Cogl framebuffer and context we created.
+<p>Once the mainloop starts running our <em>paint_cb</em> callback function will be called and is the place for us to render a new frame. The <em>user_data</em> argument is the Data pointer we passed to <em>g_idle_add</em> earlier so we can access the Cogl framebuffer and context we created.
 
 {{PAINT_CALLBACK_PROTO}}
 
@@ -154,43 +154,25 @@ CoglOnscreenTemplate apis.</em>
 
 <p>When we've finished drawing we explicitly ask for the new frame to be presented to the user by <em>"swapping"</em> the colour buffer from being a hidden back-buffer to being a visible front-buffer.
 
-<p><em>Remember, as we mentioned earlier, the GPU works asynchronously with respect to the application so when cogl_onscreen_swap_buffers() returns that doesn't necesarily mean the GPU has finished rendering the new frame or that the frame is literally visible yet. The swap-buffers-callback registered in the main() function can tell us about this if supported by the platform.</em>
+<p><em>Remember, as we mentioned earlier, the GPU works asynchronously with respect to the application so when cogl_onscreen_swap_buffers() returns that doesn't necesarily mean the GPU has finished rendering the new frame or that the frame is literally visible yet. The frame-event-callback registered in the main() function can tell us about this if supported by the platform.</em>
 
 {{DRAW_COMMANDS}}
 
 <h2>Handling further redraws</h2>
 
-<p>Finally once we have finished rendering a frame we need to think about preparing to render the next frame.
+<p>Finally once we have finished rendering a frame we need to think about how we render our next frame.
 
-<p>Depending on whether the platform supports notifying us about swap-buffer completions there are two ways of queuing the next redraw in this example.
-<ol>
-    <li>
-    <p>If the platform doesn't support swap-buffer notifications then it can
-    return <em>TRUE</em> from the idle <em>paint_cb</em> function and the glib
-    semantics for that are that the function will continue to be called
-    repeatedly whenever the mainloop is idle. This effectively means the
-    mainloop will try to draw new frames as fast as possible and on most
-    platforms it should be automatically throttled to the screen's vblank
-    frequency by blocking in cogl_onscreen_swap_buffers() once a backlog of
-    frames has built up.
+<p>Firstly the <em>paint_cb</em> function returns <em>FALSE</em> since that notifies glib that the function shouldn't continue to be called on idle. From now on painting should be throttled by <em>COGL_FRAME_EVENT_SYNC</em> events that get delivered to the <em>frame_event_cb</em> function registered earlier.
 
-    <p><em>Since throttling will happen automatically within the driver, either
-    in cogl_onscreen_swap_buffers(), or potentially in
-    cogl_framebuffer_clear4f() for example this means the application's
-    mainloop is blocked from running while being throttled which reduces the
-    time available for the application to handle other events.</em>
-    </li>
+{{UNREGISTER_IDLE}}
 
-    <li>
-    <p>If the platform does support swap-buffer notifications then this
-    example instead returns <em>FALSE</em> from <em>paint_cb</em> so that
-    the Glib mainloop won't call it again when idle.
+<p>Now if we look at the implementation of <em>frame_event_cb</em> we identify whenever the current <em>event</em> is a <em>COGL_FRAME_EVENT_SYNC</em> and if so we call our <em>paint_cb</em> function to draw a new frame.
 
-    <p>Now the application waits until the <em>swap_complete_cb</em> callback
-    function notifies us that the swap has completed and only at that point
-    re-registers <em>paint_cb</em> as an idle function to be called again by
-    the mainloop.
-    </li>
-</ol>
+{{FRAME_EVENT_CALLBACK}}
 
-{{PREPARE_FOR_REDRAW}}
+
+<h2>Done!</h2>
+
+<p>And there you are, a first example of using Cogl.
+
+<p>As you may imagine this example glosses over many interesting details, and so we would recommend also looking at the <a href="http://cogl3d.org/reference/2.0/">reference manual</a> if you are interested in learning more, and feel free to ask questions on IRC and on the mailinglist.

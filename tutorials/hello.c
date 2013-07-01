@@ -17,7 +17,7 @@ typedef struct _Data
 //END(DATA)
 
 //BEGIN(PAINT_CALLBACK_PROTO)
-static gboolean
+static CoglBool
 paint_cb (void *user_data)
 {
     Data *data = user_data;
@@ -29,26 +29,29 @@ paint_cb (void *user_data)
     cogl_onscreen_swap_buffers (COGL_ONSCREEN (data->fb));
     //END(DRAW_COMMANDS)
 
-//BEGIN(PREPARE_FOR_REDRAW)
-    if (cogl_has_feature (data->ctx, COGL_FEATURE_ID_SWAP_BUFFERS_EVENT))
-      return FALSE; /* remove the callback */
-    else
-      return TRUE;
+//BEGIN(UNREGISTER_IDLE)
+    return FALSE; /* un-register idle callback */
 }
+//END(UNREGISTER_IDLE)
 
+//BEGIN(FRAME_EVENT_CALLBACK)
 static void
-swap_complete_cb (CoglFramebuffer *framebuffer, void *user_data)
+frame_event_cb (CoglOnscreen *onscreen,
+                CoglFrameEvent event,
+                CoglFrameInfo *info,
+                void *user_data)
 {
-    g_idle_add (paint_cb, user_data);
+    if (event == COGL_FRAME_EVENT_SYNC)
+        paint_cb (user_data);
 }
-//END(PREPARE_FOR_REDRAW)
+//END(FRAME_EVENT_CALLBACK)
 
 int
 main (int argc, char **argv)
 {
     Data data;
     CoglOnscreen *onscreen;
-    GError *error = NULL;
+    CoglError *error = NULL;
     //BEGIN(VERTEX_DATA)
     CoglVertexP2C4 triangle_vertices[] = {
         {0, 0.7, 0xff, 0x00, 0x00, 0x80},
@@ -92,11 +95,12 @@ main (int argc, char **argv)
     g_source_attach (cogl_source, NULL);
     //END(GLIB_SOURCE_NEW)
 
-    //BEGIN(ADD_SWAP_CALLBACK)
-    if (cogl_has_feature (data.ctx, COGL_FEATURE_ID_SWAP_BUFFERS_EVENT))
-      cogl_onscreen_add_swap_buffers_callback (COGL_ONSCREEN (data.fb),
-                                               swap_complete_cb, &data);
-    //END(ADD_SWAP_CALLBACK)
+    //BEGIN(ADD_FRAME_CALLBACK)
+    cogl_onscreen_add_frame_callback (COGL_ONSCREEN (data.fb),
+                                      frame_event_cb,
+                                      &data,
+                                      NULL /* destroy callback */);
+    //END(ADD_FRAME_CALLBACK)
 
     //BEGIN(ADD_PAINT_IDLE)
     g_idle_add (paint_cb, &data);
